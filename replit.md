@@ -1,6 +1,6 @@
-# [Project name]
+# SalesTrack Pro
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A high-velocity Sales Tracking & Inventory Management web app for warehouse teams. Scan barcodes, track products, and export sales to Excel — all in a sleek dark-mode interface.
 
 ## Run & Operate
 
@@ -14,23 +14,45 @@ _Replace the heading above with the project's name, and this line with one sente
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Frontend: React + Vite + Tailwind CSS (dark blue glassmorphism theme)
+- Routing: wouter
+- Icons: lucide-react
+- Toasts: sonner
+- Excel export: xlsx (SheetJS)
+- Data persistence: localStorage (no backend required)
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/sales-tracker/src/` — the full React frontend
+  - `src/lib/products.ts` — 5 predefined products with qty/box
+  - `src/lib/storage.ts` — localStorage helpers (loadSales / saveSales)
+  - `src/lib/excel.ts` — Excel export logic (one sheet per product)
+  - `src/pages/Dashboard.tsx` — home screen with past sales list
+  - `src/pages/NewSale.tsx` — two-column add sale flow with barcode scanning
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Fully frontend-only: no backend, no database — all state in localStorage.
+- Excel export uses SheetJS (xlsx): each product becomes a separate Excel sheet.
+- Barcode scanner input uses `useRef` + `Enter` key handler for instant, frictionless scanning.
+- Dark theme is the default (`/new`, `/` both styled for dark control-room aesthetic).
+- Sale file naming: `YYYY-MM-DD sale.xlsx` per the spec.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- **Dashboard**: Metrics cards (Total Sales, Items Tracked, Total Quantity) + past sales table
+- **Add New Sale**: Sale Name → Product select → Barcode scan loop → Submit Item → Save Sale (exports Excel)
+- **Excel Export**: One sheet per product with Date | Sl. No | Item Name | Serial Number columns
+
+## Predefined Products
+
+| Product | Qty/Box |
+|---------|---------|
+| 48 Way  | 168     |
+| OBC     | 300     |
+| 4 Way   | 2200    |
+| Shourd  | 110     |
+| Ford    | 2000    |
 
 ## User preferences
 
@@ -38,7 +60,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The `dark` class cannot be used in `@apply` (it's a variant, not a utility in Tailwind v4). Apply the dark theme by default in `:root` CSS variables instead.
+- Always put Google Fonts `@import url(...)` as the very first line of `index.css`, before `@import "tailwindcss"`.
 
 ## Pointers
 
