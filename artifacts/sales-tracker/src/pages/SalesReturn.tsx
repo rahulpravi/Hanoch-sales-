@@ -1,20 +1,20 @@
 import { useState, useRef, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { toast } from "sonner";
-import { PRODUCTS, Product, SaleItem, Sale } from "@/lib/products";
-import { addSale } from "@/lib/storage";
-import { exportToExcel } from "@/lib/excel";
+import { PRODUCTS } from "@/lib/products";
+import { addReturn } from "@/lib/storage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Save, Scan, Hash, Box, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Save, Scan, Hash, Box, ShoppingCart, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import * as XLSX from "xlsx";
 
 const uuidv4 = () => crypto.randomUUID();
 
-export default function NewSale() {
+export default function SalesReturn() {
   const [, setLocation] = useLocation();
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   
@@ -24,7 +24,7 @@ export default function NewSale() {
   const [serialInput, setSerialInput] = useState("");
   const [scannedSerials, setScannedSerials] = useState<string[]>([]);
   
-  const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
+  const [returnItems, setReturnItems] = useState<any[]>([]);
   
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,7 +59,7 @@ export default function NewSale() {
     const totalBoxes = scannedSerials.length;
     const totalQty = totalBoxes * selectedProduct.qtyPerBox;
 
-    const newItem: SaleItem = {
+    const newItem = {
       productName: selectedProduct.name,
       qtyPerBox: selectedProduct.qtyPerBox,
       date,
@@ -68,68 +68,80 @@ export default function NewSale() {
       totalQty
     };
 
-    setSaleItems((prev) => [...prev, newItem]);
-    toast.success(`Item Count Saved: ${totalQty}`);
+    setReturnItems((prev) => [...prev, newItem]);
+    toast.success(`Damage Item Count Saved: ${totalBoxes} boxes`);
     
-    // Reset item form
     setSelectedProductName("");
     setScannedSerials([]);
     setSerialInput("");
   };
 
-  const handleSaveSale = () => {
-    if (saleItems.length === 0) {
-      toast.error("Add at least one item to save the sale");
+  const handleSaveReturn = () => {
+    if (returnItems.length === 0) {
+      toast.error("Add at least one damage item to save");
       return;
     }
 
-    const totalItems = saleItems.reduce((acc, item) => acc + item.totalQty, 0);
-    const sale: Sale = {
+    const totalBoxes = returnItems.reduce((acc, item) => acc + item.totalBoxes, 0);
+    const returnLog = {
       id: uuidv4(),
-      name: date,
+      name: date + " Return",
       date,
-      items: saleItems,
-      totalItems,
+      items: returnItems,
+      totalBoxes,
       createdAt: new Date().toISOString()
     };
 
-    addSale(sale);
+    addReturn(returnLog);
+
     try {
-      exportToExcel(sale);
-      toast.success("Sale saved and exported to Excel");
+      const wb = XLSX.utils.book_new();
+      for (const item of returnItems) {
+        const rows = item.serialNumbers.map((sn, idx) => ({
+          "Date": item.date,
+          "Sl. No": idx + 1,
+          "Item Name": item.productName,
+          "Serial Number": sn,
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const sheetName = item.productName.substring(0, 31);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+      XLSX.writeFile(wb, date + " return.xlsx");
+      
+      toast.success("Sales Return saved and exported to Excel");
       setLocation("/");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to export Excel, but sale was saved");
+      toast.error("Failed to export Excel, but return log was saved");
     }
   };
 
   const canSubmitItem = !!selectedProduct && scannedSerials.length > 0;
-  const canSaveSale = saleItems.length > 0;
+  const canSaveReturn = returnItems.length > 0;
 
   const currentTotalBoxes = scannedSerials.length;
-  const currentTotalQty = selectedProduct ? currentTotalBoxes * selectedProduct.qtyPerBox : 0;
-  
-  const globalTotalBoxes = saleItems.reduce((acc, item) => acc + item.totalBoxes, 0);
+  const globalTotalBoxes = returnItems.reduce((acc, item) => acc + item.totalBoxes, 0);
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex flex-col">
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur sticky top-0 z-10">
+      <header className="border-b border-destructive/30 bg-destructive/10 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="inline-flex">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white" data-testid="button-back">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white">
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <h1 className="text-lg font-medium text-white tracking-tight">New Sale</h1>
+            <h1 className="text-lg font-medium text-destructive flex items-center gap-2 tracking-tight">
+              <AlertTriangle className="w-5 h-5" /> Sales Return (Damage Entry)
+            </h1>
           </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* LEFT PANEL */}
         <div className="lg:col-span-7 space-y-6">
           <Card className="bg-card/50 backdrop-blur border-border/50 shadow-md">
             <CardHeader>
@@ -137,23 +149,22 @@ export default function NewSale() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="date">Date</Label>
+                <Label htmlFor="date">Return Date</Label>
                 <Input 
                   id="date" 
                   type="date" 
                   value={date} 
                   onChange={(e) => setDate(e.target.value)} 
                   className="bg-input/50"
-                  data-testid="input-date"
                 />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card/50 backdrop-blur border-border/50 shadow-lg ring-1 ring-primary/20">
+          <Card className="bg-card/50 backdrop-blur border-destructive/20 shadow-lg ring-1 ring-destructive/20">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <Scan className="w-5 h-5 text-primary" /> Product Entry
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <Scan className="w-5 h-5" /> Scan Damaged Product
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -161,7 +172,7 @@ export default function NewSale() {
                 <div className="sm:col-span-2 space-y-2">
                   <Label>Product Name</Label>
                   <Select value={selectedProductName} onValueChange={setSelectedProductName}>
-                    <SelectTrigger className="bg-input/50" data-testid="select-product">
+                    <SelectTrigger className="bg-input/50">
                       <SelectValue placeholder="Select a product" />
                     </SelectTrigger>
                     <SelectContent>
@@ -185,7 +196,7 @@ export default function NewSale() {
 
               <div className="space-y-3">
                 <Label htmlFor="barcode" className="text-lg font-medium text-white flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-primary" /> Scan / Type Serial Number
+                  <Hash className="w-4 h-4 text-destructive" /> Scan / Type Damaged Serial Number
                 </Label>
                 <Input
                   id="barcode"
@@ -193,70 +204,60 @@ export default function NewSale() {
                   value={serialInput}
                   onChange={(e) => setSerialInput(e.target.value)}
                   onKeyDown={handleBarcodeKeyDown}
-                  placeholder="Focus here and scan..."
-                  className="h-16 text-2xl font-mono bg-background border-primary/30 focus-visible:ring-primary shadow-inner"
-                  data-testid="input-barcode"
+                  placeholder="Focus here and scan return item..."
+                  className="h-16 text-2xl font-mono bg-background border-destructive/30 focus-visible:ring-destructive shadow-inner"
                   disabled={!selectedProduct}
                 />
-                <p className="text-xs text-muted-foreground">Press Enter after each scan. Scanner should automatically send Enter.</p>
+                <p className="text-xs text-muted-foreground">Press Enter after each scan.</p>
               </div>
 
               <div className="bg-muted/30 p-4 rounded-lg flex items-center justify-between border border-border/50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded bg-primary/20 flex items-center justify-center">
-                    <Box className="w-5 h-5 text-primary" />
+                  <div className="w-10 h-10 rounded bg-destructive/20 flex items-center justify-center">
+                    <Box className="w-5 h-5 text-destructive" />
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Current Scan Session</div>
+                    <div className="text-sm text-muted-foreground">Current Return Session</div>
                     <div className="text-xl font-medium text-white">
                       {currentTotalBoxes} <span className="text-sm font-normal text-muted-foreground">boxes</span>
                     </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Total Qty</div>
-                  <div className="text-2xl font-bold text-primary font-mono">{currentTotalQty.toLocaleString()}</div>
                 </div>
               </div>
 
               <Button 
                 onClick={handleSubmitItem} 
                 disabled={!canSubmitItem} 
+                variant="destructive"
                 className="w-full h-12 text-base font-medium shadow-lg"
-                data-testid="button-submit-item"
               >
-                Submit Item
+                Submit Damaged Item
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* RIGHT PANEL */}
         <div className="lg:col-span-5 space-y-6">
           <Card className="bg-card/50 backdrop-blur border-border/50 shadow-md sticky top-24">
-            <CardHeader className="bg-muted/20 border-b border-border/50 pb-4">
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" /> Current Sale Summary
+            <CardHeader className="bg-destructive/10 border-b border-border/50 pb-4">
+              <CardTitle className="flex items-center gap-2 text-white">
+                <ShoppingCart className="w-5 h-5 text-destructive" /> Return Summary
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-[400px] overflow-y-auto p-4 space-y-3">
-                {saleItems.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground text-sm" data-testid="empty-summary">
-                    No items added yet. Scan and submit items to build the sale.
+                {returnItems.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No return items added yet. Scan and submit damaged items.
                   </div>
                 ) : (
-                  saleItems.map((item, idx) => (
-                    <div key={idx} className="bg-background/50 border border-border/50 p-3 rounded-md flex items-center justify-between group">
+                  returnItems.map((item, idx) => (
+                    <div key={idx} className="bg-background/50 border border-border/50 p-3 rounded-md flex items-center justify-between">
                       <div>
                         <div className="font-medium text-white">{item.productName}</div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          {item.totalBoxes} boxes × {item.qtyPerBox}
+                          {item.totalBoxes} damaged boxes
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-mono font-medium text-white">{item.totalQty.toLocaleString()}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">qty</div>
                       </div>
                     </div>
                   ))
@@ -265,18 +266,18 @@ export default function NewSale() {
               
               <div className="p-4 bg-muted/30 border-t border-border/50">
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-muted-foreground">Total Boxes</span>
-                  <span className="font-mono text-xl font-bold text-primary">{globalTotalBoxes}</span>
+                  <span className="text-muted-foreground">Total Return Boxes</span>
+                  <span className="font-mono text-xl font-bold text-destructive">{globalTotalBoxes}</span>
                 </div>
                 <Button 
-                  onClick={handleSaveSale} 
-                  disabled={!canSaveSale}
+                  onClick={handleSaveReturn} 
+                  disabled={!canSaveReturn}
+                  variant="destructive"
                   size="lg" 
                   className="w-full gap-2 font-semibold shadow-lg"
-                  data-testid="button-save-sale"
                 >
                   <Save className="w-5 h-5" />
-                  Save Sale Now
+                  Save Return Now
                 </Button>
               </div>
             </CardContent>

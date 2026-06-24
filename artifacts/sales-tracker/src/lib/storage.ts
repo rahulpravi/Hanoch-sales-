@@ -1,6 +1,7 @@
 import { Sale } from "./products";
 
 const STORAGE_KEY = "sales-tracker-sales";
+const RETURN_KEY = "sales-tracker-returns";
 
 export function loadSales(): Sale[] {
   const data = localStorage.getItem(STORAGE_KEY);
@@ -19,6 +20,22 @@ export function saveSales(sales: Sale[]) {
 
 export function addSale(sale: Sale) {
   const sales = loadSales();
-  sales.unshift(sale); // Add to the top
+  sales.unshift(sale);
   saveSales(sales);
+}
+
+export function loadReturns(): any[] {
+  const data = localStorage.getItem(RETURN_KEY);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch (e) {
+    return [];
+  }
+}
+
+export function addReturn(ret: any) {
+  const returns = loadReturns();
+  returns.unshift(ret);
+  localStorage.setItem(RETURN_KEY, JSON.stringify(returns));
 }
